@@ -9,9 +9,6 @@ int lastID = 1;
 
 void free_message(Message *m) {
 	if (m) {
-		if (m->payload) {
-			free(m->payload);
-		}
 		free(m);
 	}
 }
@@ -33,7 +30,7 @@ Message *create_message(char *payload, MessageType type) {
 	(void)strncpy(m->payload, payload, len);
 	m->payload[len] = 0;
 
-	m->length = len + HEADER_SIZE;
+	m->length = (int)len + HEADER_SIZE;
 	m->id = lastID++;
 	m->type = type;
 
@@ -42,6 +39,10 @@ Message *create_message(char *payload, MessageType type) {
 
 uint8_t *encode_message(Message *m) {
 	uint8_t *buf = malloc(sizeof(int) * m->length + 4);
+
+	if (buf == NULL) {
+		return NULL;
+	}
 
 	memcpy(buf, &m->length, sizeof(int));
 	memcpy(buf + 4, &m->id, sizeof(int));

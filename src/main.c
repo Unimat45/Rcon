@@ -1,10 +1,16 @@
 #include <stdio.h>
 #include <string.h>
-#include <strings.h>
 #include <stdint.h>
 #include "rcon.h"
 
-typedef char * string;
+#ifdef _MSC_VER
+
+#define CASE_CMP(a, b) (_strcmpi(a, b) == 0)
+#pragma execution_character_set( "utf-8" )
+#else
+#include <strings.h>
+#define CASE_CMP(a, b) (strcasecmp(a, b) == 0)
+#endif
 
 int indexOf(char **haystack, int N, char* needle) {
     for (int i = 0; i < N; i++) {
@@ -17,8 +23,8 @@ int indexOf(char **haystack, int N, char* needle) {
 
 int main(int argc, char **argv) {
     uint16_t port = 25575;
-    string address = "127.0.0.1";
-    string password = "minecraft";
+    char *address = "127.0.0.1";
+    char *password = "minecraft";
 
     int hostIndex = indexOf(argv, argc, "-H");
     if (hostIndex != -1) {
@@ -53,9 +59,13 @@ int main(int argc, char **argv) {
     while (true) {
         (void)printf("> ");
 
-        scanf("%s", buf);
+#ifdef _MSC_VER
+        (void)scanf_s("%s", buf, 4110);
+#else
+        (void)scanf("%s", buf);
+#endif
 
-        if (strcasecmp(buf, "Q") == 0) {
+        if (CASE_CMP(buf, "Q")) {
             break;
         }
 
@@ -63,6 +73,8 @@ int main(int argc, char **argv) {
 
         (void)printf("%s\n", res->payload);
     }
+
+    free_client();
 
     return 0;
 }

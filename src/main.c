@@ -7,9 +7,12 @@
 
 #define CASE_CMP(a, b) (_strcmpi(a, b) == 0)
 #pragma execution_character_set( "utf-8" )
+
 #else
+
 #include <strings.h>
 #define CASE_CMP(a, b) (strcasecmp(a, b) == 0)
+
 #endif
 
 int indexOf(char **haystack, int N, char* needle) {

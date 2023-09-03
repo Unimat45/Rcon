@@ -40,5 +40,5 @@ This project is built using `cmake`.
 
 * Better CLI arguments parsing and handling
 * Help information
-* Remove garbage characters, mostly color codes
 * Fix recv to read all received text
+* ~~Remove garbage characters, mostly color codes~~

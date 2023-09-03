@@ -2,8 +2,11 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #define HEADER_SIZE 10
+
+void removeBytes(char* payload, char byte_to_remove, int bytes_to_remove);
 
 int lastID = 1;
 
@@ -78,5 +81,23 @@ Message *decode_message(uint8_t *data) {
 	(void)strncpy(m->payload, ((char *)data) + 12, m->length - HEADER_SIZE);
 	m->payload[m->length - HEADER_SIZE] = 0;
 
+	removeBytes(m->payload, -62, 3);
+	removeBytes(m->payload, -62, 3);
+
 	return m;
+}
+
+void removeBytes(char* payload, char byte_to_remove, int bytes_to_remove) {
+	size_t len = strlen(payload);
+	size_t trunc = 0;
+
+	for (size_t i = 0; i < len; i++) {
+		if (payload[i] == byte_to_remove) {
+			(void)memmove(payload + i, payload + i + bytes_to_remove, len - i - bytes_to_remove);
+			i += bytes_to_remove - 1;
+			trunc += bytes_to_remove;
+		}
+	}
+
+	payload[len - trunc] = 0;
 }

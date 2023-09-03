@@ -19,3 +19,9 @@ target_compile_options(rcon PRIVATE
   $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
   $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Werror>
 )
+
+if (MSVC)
+  install(TARGETS rcon DESTINATION "Rcon/bin")
+else()
+  install(TARGETS rcon DESTINATION "/usr/local/bin" PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+endif()

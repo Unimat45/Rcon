@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+
 #include "rcon.h"
+#include "argparse.h"
 
 #ifdef _MSC_VER
 
@@ -15,37 +17,27 @@
 
 #endif
 
-int indexOf(char **haystack, int N, char* needle) {
-    for (int i = 0; i < N; i++) {
-        if (strcmp(haystack[i], needle) == 0) {
-            return i;
-        }
-    }
-    return -1;
-}
+static const char *const usages[] = {
+    "rcon [options]",
+    NULL,
+};
 
 int main(int argc, char **argv) {
     uint16_t port = 25575;
-    char *address = "127.0.0.1";
-    char *password = "minecraft";
+    char *address = "10.0.0.106";
+    char *password = "7y6t5r4e3w";
 
-    int hostIndex = indexOf(argv, argc, "-H");
-    if (hostIndex != -1) {
-        if (argc <= hostIndex + 1) {
-            (void)fprintf(stderr, "No host specified\n");
-            return 1;
-        }
-        address = argv[hostIndex + 1];
-    }
+    struct argparse_option options[] = {
+        OPT_HELP(),
+        OPT_STRING('H', "host", &address, "Host address of the server", NULL, 0, 0),
+        OPT_STRING('P', "password", &password, "Password of the server", NULL, 0, 0),
+        OPT_END(),
+    };
 
-    int passIndex = indexOf(argv, argc, "-p");
-    if (passIndex != -1) {
-        if (argc <= passIndex + 1) {
-            (void)fprintf(stderr, "No password specified\n");
-            return 1;
-        }
-        password = argv[passIndex + 1];
-    }
+    struct argparse argparse;
+    argparse_init(&argparse, options, usages, 0);
+    argparse_describe(&argparse, "Interacts with a minecraft server using the RCON protocol", "");
+    argc = argparse_parse(&argparse, argc, argv);
     
     if (!connect_to_server(address, port)) {
         (void)fprintf(stderr, "Failed to connect to server\n");
@@ -59,22 +51,29 @@ int main(int argc, char **argv) {
 
     char buf[4110];
     (void)printf("Connected! Use 'Q' or 'Ctrl+C' to exit.\n");
+    
     while (true) {
         (void)printf("> ");
 
 #ifdef _MSC_VER
-        (void)scanf_s("%s", buf, 4110);
+        (void)scanf_s(" %4109[^\n]", buf, 4110);
 #else
-        (void)scanf("%s", buf);
+        (void)scanf(" %4109[^\n]", buf);
 #endif
 
-        if (CASE_CMP(buf, "Q")) {
+        if (CASE_CMP(buf, "Q") || CASE_CMP(buf, "QUIT")) {
             break;
         }
 
-        Message *res = send_command(buf);
+        Message res;
+        bool err = send_command(&res, buf);
 
-        (void)printf("%s\n", res->payload);
+        if (!err) {
+            (void)printf("Error sending message\n");
+        }
+        else {
+            (void)printf("%s\n", res.payload);
+        }
     }
 
     free_client();

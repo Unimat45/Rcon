@@ -2,6 +2,7 @@
 #define MESSAGE_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef enum {
 	Response = 0,
@@ -12,13 +13,12 @@ typedef enum {
 typedef struct {
 	int length;
 	int type;
-	char *payload;
+	char payload[4110];
 	MessageType id;
 } Message;
 
-void free_message(Message *m);
-uint8_t *encode_message(Message *m);
-Message *decode_message(uint8_t *data);
-Message *create_message(char *payload, MessageType type);
+void encode_message(uint8_t *buf, Message *m);
+bool decode_message(Message *m, uint8_t *data);
+bool create_message(Message *m, char *payload, MessageType type);
 
 #endif // MESSAGE_H

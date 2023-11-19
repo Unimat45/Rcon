@@ -22,15 +22,16 @@ static const char *const usages[] = {
     NULL,
 };
 
-int main(int argc, char **argv) {
+int main(int argc, const char **argv) {
     uint16_t port = 25575;
-    char *address = "10.0.0.106";
-    char *password = "7y6t5r4e3w";
+    char *address = "127.0.0.1";
+    char *password = "minecraft";
 
     struct argparse_option options[] = {
         OPT_HELP(),
         OPT_STRING('H', "host", &address, "Host address of the server", NULL, 0, 0),
-        OPT_STRING('P', "password", &password, "Password of the server", NULL, 0, 0),
+        OPT_STRING('p', "password", &password, "Password of the server", NULL, 0, 0),
+        OPT_INTEGER('P', "port", &port, "Host port of the server", NULL, 0, 0),
         OPT_END(),
     };
 
@@ -61,7 +62,7 @@ int main(int argc, char **argv) {
         (void)scanf(" %4109[^\n]", buf);
 #endif
 
-        if (CASE_CMP(buf, "Q") || CASE_CMP(buf, "QUIT")) {
+       if (CASE_CMP(buf, "Q") || CASE_CMP(buf, "QUIT")) {
             break;
         }
 

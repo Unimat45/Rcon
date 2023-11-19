@@ -17,7 +17,6 @@ WSADATA wsaData;
 SOCKET sock = INVALID_SOCKET;
 struct addrinfo *result = NULL, *ptr = NULL, hints;
 
-
 size_t int_to_char(uint16_t a, char *out) {
 	if (out == NULL) {
 		return 0;
@@ -220,7 +219,7 @@ bool rcon_authenticate(char *password) {
 
 bool send_command(Message *r, char *command) {
 	Message m;
-	bool err = create_message(&r, command, Command);
+	bool err = create_message(&m, command, Command);
 
 	if (!err) {
 		return NULL;
@@ -229,11 +228,7 @@ bool send_command(Message *r, char *command) {
 	uint8_t encoded[4110];
 	encode_message(encoded, &m);
 
-	if (encoded == NULL) {
-		return false;
-	}
-
-	if (send(client_fd, encoded, m.length + 4, 0) < 0) {
+  if (send(client_fd, encoded, m.length + 4, 0) < 0) {
 		return false;
 	}
 
@@ -242,8 +237,7 @@ bool send_command(Message *r, char *command) {
 		return false;
 	}
 
-	Message r;
-	err = decode_message(&r, buf);
+	err = decode_message(r, buf);
 
 	if (!err) {
 		return false;
@@ -252,7 +246,7 @@ bool send_command(Message *r, char *command) {
 	return true;
 }
 
-void free_client() {
+void free_client(void) {
 	(void)close(client_fd);
 }
 #endif

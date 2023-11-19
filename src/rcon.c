@@ -4,81 +4,89 @@
 #define MAX_LEN 4110
 
 #if defined(_WIN32) || defined(_WIN64)
+#define rev_str _strrev
 #define MAX_PORT_STR_SIZE 6
-
 #define WIN32_LEAN_AND_MEAN
+
 #include <WinSock2.h>
 #include <WS2tcpip.h>
-#include <stdio.h>
 
-#pragma comment (lib, "Ws2_32.lib")
-#pragma comment (lib, "Mswsock.lib")
-#pragma comment (lib, "AdvApi32.lib")
+#pragma comment(lib, "Ws2_32.lib")
 
 WSADATA wsaData;
 SOCKET sock = INVALID_SOCKET;
 struct addrinfo *result = NULL, *ptr = NULL, hints;
 
-size_t intToChar(uint16_t a, char *out) {
+size_t int_to_char(uint16_t a, char *out) {
 	if (out == NULL) {
 		return 0;
 	}
 
-	return sprintf_s(out, MAX_PORT_STR_SIZE, "%d", a);
+	uint8_t i = 0;
+
+	while (a) {
+		out[i++] = (a % 10) + '0';
+		a /= 10;
+	}
+
+	out[i] = 0;
+
+	(void)rev_str(out);
+
+	return i;
 }
 
-Message *send_command(char *command) {
-	Message *m = create_message(command, Command);
-	if (m == NULL) {
-		return NULL;
+bool send_command(Message *r, char *command) {
+	Message m;
+	bool err = create_message(&m, command, Command);
+
+	if (!err) {
+		return false;
 	}
 
-	uint8_t *encoded = encode_message(m);
+	uint8_t encoded[4110];
+	encode_message(encoded, &m);
 
 	if (encoded == NULL) {
-		free_message(m);
-		return NULL;
+		return false;
 	}
 
-	if (send(sock, (const char *)encoded, m->length + 4, 0) < 0) {
-		free_message(m);
-		free(encoded);
-		return NULL;
+	if (send(sock, (const char *)encoded, m.length + 4, 0) < 0) {
+		return false;
 	}
 
 	uint8_t buf[MAX_LEN];
 	int bytes_read = recv(sock, (char *)buf, MAX_LEN, 0);
 
 	if (bytes_read <= 0) {
-		free_message(m);
-		free(encoded);
-		return NULL;
+		return false;
 	}
 
-	Message *r = decode_message(buf);
+	err = decode_message(r, buf);
 
-	free_message(m);
-	free(encoded);
+	if (!err) {
+		return false;
+	}
 
 	return r;
 }
 
 bool rcon_authenticate(char *password) {
-	Message *m = create_message(password, Auth);
-	if (m == NULL) {
+	Message m;
+	bool err = create_message(&m, password, Auth);
+
+	if (!err) {
 		return false;
 	}
 
-	uint8_t *encoded = encode_message(m);
+	uint8_t encoded[4110];
+	encode_message(encoded, &m);
 
 	if (encoded == NULL) {
-		free_message(m);
 		return false;
 	}
 
-	if (send(sock, (const char *)encoded, m->length + 4, 0) < 0) {
-		free_message(m);
-		free(encoded);
+	if (send(sock, (const char *)encoded, m.length + 4, 0) < 0) {
 		return false;
 	}
 
@@ -87,26 +95,18 @@ bool rcon_authenticate(char *password) {
 	int bytes_read = recv(sock, (char *)buf, MAX_LEN, 0);
 
 	if (bytes_read <= 0) {
-		free_message(m);
-		free(encoded);
 		return false;
 	}
 
-	Message *r = decode_message(buf);
+	Message r;
+	
+	err = decode_message(&r, buf);
 
-	if (r == NULL) {
-		free_message(m);
-		free(encoded);
+	if (!err) {
 		return false;
 	}
 
-	bool isOk = m->id == r->id;
-
-	free(encoded);
-	free_message(m);
-	free_message(r);
-
-	return isOk;
+	return m.id == r.id;
 }
 
 bool connect_to_server(char *address, uint16_t port) {
@@ -120,7 +120,7 @@ bool connect_to_server(char *address, uint16_t port) {
 	hints.ai_protocol = IPPROTO_TCP;
 
 	char p[MAX_PORT_STR_SIZE];
-	(void)intToChar(port, p);
+	(void)int_to_char(port, p);
 
 	if (getaddrinfo(address, p, &hints, &result) != 0) {
 		(void)WSACleanup();
@@ -159,11 +159,10 @@ void free_client() {
 	(void)WSACleanup();
 }
 
-#else
+#else // Unix
 
 #include <arpa/inet.h>
 #include <unistd.h>
-
 
 int client_fd;
 struct sockaddr_in serv_addr;
@@ -189,89 +188,65 @@ bool connect_to_server(char *address, uint16_t port) {
 }
 
 bool rcon_authenticate(char *password) {
-	Message *m = create_message(password, Auth);
-	if (m == NULL) {
+	Message m;
+	bool err = create_message(&m, password, Auth);
+
+	if (!err) {
 		return false;
 	}
 
-	uint8_t *encoded = encode_message(m);
+	uint8_t encoded[4110];
+	encode_message(encoded, &m);
 
-	if (encoded == NULL) {
-		free_message(m);
-		return false;
-	}
-
-	if (send(client_fd, encoded, m->length + 4, 0) < 0) {
-		free_message(m);
-		free(encoded);
+	if (send(client_fd, encoded, m.length + 4, 0) < 0) {
 		return false;
 	}
 
 	uint8_t buf[MAX_LEN];
 	if (read(client_fd, buf, MAX_LEN) < 0) {
-		free_message(m);
-		free(encoded);
 		return false;
 	}
 
-	Message *r = decode_message(buf);
+	Message r;
+	err = decode_message(&r, buf);
 
-	if (r == NULL) {
-		free_message(m);
-		free(encoded);
+	if (!err) {
 		return false;
 	}
 
-	bool isOk = m->id == r->id;
-
-	free(encoded);
-	free_message(m);
-	free_message(r);
-
-	return isOk;
+	return m.id == r.id;
 }
 
-Message *send_command(char *command) {
-	Message *m = create_message(command, Command);
-	if (m == NULL) {
+bool send_command(Message *r, char *command) {
+	Message m;
+	bool err = create_message(&m, command, Command);
+
+	if (!err) {
 		return NULL;
 	}
 
-	uint8_t *encoded = encode_message(m);
+	uint8_t encoded[4110];
+	encode_message(encoded, &m);
 
-	if (encoded == NULL) {
-		free_message(m);
-		return NULL;
-	}
-
-	if (send(client_fd, encoded, m->length + 4, 0) < 0) {
-		free_message(m);
-		free(encoded);
-		return NULL;
+  if (send(client_fd, encoded, m.length + 4, 0) < 0) {
+		return false;
 	}
 
 	uint8_t buf[MAX_LEN];
 	if (read(client_fd, buf, MAX_LEN) < 0) {
-		free_message(m);
-		free(encoded);
-		return NULL;
+		return false;
 	}
 
-	Message *r = decode_message(buf);
+	err = decode_message(r, buf);
 
-	if (r == NULL) {
-		free_message(m);
-		free(encoded);
-		return NULL;
+	if (!err) {
+		return false;
 	}
 
-	free_message(m);
-	free(encoded);
-
-	return r;
+	return true;
 }
 
-void free_client() {
+void free_client(void) {
 	(void)close(client_fd);
 }
 #endif

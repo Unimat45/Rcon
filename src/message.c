@@ -10,41 +10,31 @@ void removeBytes(char* payload, char byte_to_remove, int bytes_to_remove);
 
 int lastID = 1;
 
-void free_message(Message *m) {
-	if (m) {
-		free(m);
-	}
-}
-
-Message *create_message(char *payload, MessageType type) {
-	Message *m = malloc(sizeof(Message));
+bool create_message(Message *m, char *payload, MessageType type) {
 	if (m == NULL) {
-		return m;
+		return false;
 	}
 
 	size_t len = strlen(payload);
-	m->payload = malloc(len * sizeof(char));
 
-	if (m->payload == NULL) {
-		free(m);
-		return NULL;
-	}
-
+#ifdef _MSC_VER
+	(void)strncpy_s(m->payload, sizeof(m->payload), payload, len);
+#else
 	(void)strncpy(m->payload, payload, len);
+#endif
+
 	m->payload[len] = 0;
 
 	m->length = (int)len + HEADER_SIZE;
 	m->id = lastID++;
 	m->type = type;
 
-	return m;
+	return true;
 }
 
-uint8_t *encode_message(Message *m) {
-	uint8_t *buf = malloc(sizeof(int) * m->length + 4);
-
+void encode_message(uint8_t *buf, Message *m) {
 	if (buf == NULL) {
-		return NULL;
+		return;
 	}
 
 	memcpy(buf, &m->length, sizeof(int));
@@ -52,39 +42,38 @@ uint8_t *encode_message(Message *m) {
 	memcpy(buf + 8, &m->type, sizeof(int));
 
 	size_t len = strlen(m->payload);
-	(void)strncpy(((char *)buf) + 12, m->payload, len);
+
+#ifdef _MSC_VER
+	(void)strncpy_s((char *)(buf + 12), 4097, m->payload, len);
+#else
+	(void)strncpy((char *)(buf + 12), m->payload, len);
+#endif
 
 	buf[12 + len] = 0;
 	buf[13 + len] = 0;
-
-	return buf;
 }
 
-Message *decode_message(uint8_t *data) {
-	Message *m = malloc(sizeof(Message));
-
+bool decode_message(Message *m, uint8_t *data) {
 	if (m == NULL) {
-		return m;
+		return false;
 	}
 
 	memcpy(&m->length, data, sizeof(int));
 	memcpy(&m->id, data + 4, sizeof(int));
 	memcpy(&m->type, data + 8, sizeof(int));
 
-	m->payload = malloc(sizeof(char) * (m->length - HEADER_SIZE));
+#ifdef _MSC_VER
+	(void)strncpy_s(m->payload, sizeof(m->payload), (char *)(data + 12), m->length - HEADER_SIZE);
+#else
+	(void)strncpy(m->payload, (char *)(data + 12), m->length - HEADER_SIZE);
+#endif
 
-	if (m->payload == NULL) {
-		free(m);
-		return NULL;
-	}
-
-	(void)strncpy(m->payload, ((char *)data) + 12, m->length - HEADER_SIZE);
 	m->payload[m->length - HEADER_SIZE] = 0;
 
 	removeBytes(m->payload, -62, 3);
 	removeBytes(m->payload, -62, 3);
 
-	return m;
+	return true;
 }
 
 void removeBytes(char* payload, char byte_to_remove, int bytes_to_remove) {

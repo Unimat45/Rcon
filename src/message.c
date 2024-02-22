@@ -17,12 +17,7 @@ bool create_message(Message *m, char *payload, MessageType type) {
 
 	size_t len = strlen(payload);
 
-#ifdef _MSC_VER
-	(void)strncpy_s(m->payload, sizeof(m->payload), payload, len);
-#else
-	(void)strncpy(m->payload, payload, len);
-#endif
-
+  memcpy(m->payload, payload, len + 1);
 	m->payload[len] = 0;
 
 	m->length = (int)len + HEADER_SIZE;
@@ -43,12 +38,7 @@ void encode_message(uint8_t *buf, Message *m) {
 
 	size_t len = strlen(m->payload);
 
-#ifdef _MSC_VER
-	(void)strncpy_s((char *)(buf + 12), 4097, m->payload, len);
-#else
-	(void)strncpy((char *)(buf + 12), m->payload, len);
-#endif
-
+  memcpy((char*)(buf + 12), m->payload, len + 1);
 	buf[12 + len] = 0;
 	buf[13 + len] = 0;
 }
@@ -62,12 +52,7 @@ bool decode_message(Message *m, uint8_t *data) {
 	memcpy(&m->id, data + 4, sizeof(int));
 	memcpy(&m->type, data + 8, sizeof(int));
 
-#ifdef _MSC_VER
-	(void)strncpy_s(m->payload, sizeof(m->payload), (char *)(data + 12), m->length - HEADER_SIZE);
-#else
-	(void)strncpy(m->payload, (char *)(data + 12), m->length - HEADER_SIZE);
-#endif
-
+  memcpy(m->payload, (char*)(data + 12), m->length - HEADER_SIZE);
 	m->payload[m->length - HEADER_SIZE] = 0;
 
 	removeBytes(m->payload, -62, 3);

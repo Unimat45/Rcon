@@ -6,7 +6,7 @@
 * [How to use it ?](#how-to-use-it)
 * [How to build ?](#how-to-build)
 	* [On Linux / macOS](#on-linux--macos)
-	* [On Qindows](#on-windows)
+	* [On Windows](#on-windows)
 * [TODO](#todo)
 
 ## What is it ?

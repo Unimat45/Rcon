@@ -1,23 +1,16 @@
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required(VERSION 3.16)
 
-project ("rcon" VERSION 1.1)
+project(rcon LANGUAGES C CXX VERSION 2.0.0)
 
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_C_STANDARD_REQUIRED ON)
+option(BUILD_CLI "Build the cli tool" ON)
+option(BUILD_QT "Build the Qt interface" ON)
 
-include_directories(${CMAKE_SOURCE_DIR}/include)
+add_subdirectory(lib/)
 
-set(PROJECT_SOURCES "src/main.c" "src/message.c" "src/rcon.c" "src/argparse.c")
+if(BUILD_CLI)
+    add_subdirectory(cli/)
+endif()
 
-add_executable (rcon ${PROJECT_SOURCES})
-
-target_compile_options(rcon PRIVATE
-  $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
-  $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Werror>
-)
-
-if (MSVC)
-  install(TARGETS rcon DESTINATION "Rcon/bin")
-else()
-  install(TARGETS rcon DESTINATION "/usr/local/bin" PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+if(BUILD_QT)
+    add_subdirectory(qt/)
 endif()

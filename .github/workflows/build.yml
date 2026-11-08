@@ -3,6 +3,7 @@ name: Build
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -13,30 +14,140 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-jobs:
-  build:
-    name: ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
+env:
+  QT_VERSION: '6.8.3'
 
+jobs:
+  windows:
+    name: Windows x64
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
     steps:
       - uses: actions/checkout@v7
-
-      - name: Install OpenGL headers (Qt dependency)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libegl1-mesa-dev libxkbcommon-dev
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.8.3'
+          version: ${{ env.QT_VERSION }}
+          cache: true
+
+      - name: Configure
+        run: cmake -B build -DBUILD_CLI=ON -DBUILD_QT=ON
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Package
+        run: |
+          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { $env:GITHUB_SHA.Substring(0, 7) }
+          $name = "rcon-$version-windows-x64"
+          $dist = "dist/$name"
+          New-Item -ItemType Directory -Force $dist | Out-Null
+
+          Copy-Item build/cli/Release/rcon-cli.exe, build/qt/Release/rcon-qt.exe $dist
+          windeployqt --release --no-translations --no-system-d3d-compiler --no-opengl-sw "$dist/rcon-qt.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          # Ship the MSVC runtime next to the executables (app-local deployment)
+          # so users don't need the Visual C++ Redistributable installed.
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $crt = Get-ChildItem "$vs\VC\Redist\MSVC\*\x64\Microsoft.VC14*.CRT" -Directory | Sort-Object FullName | Select-Object -Last 1
+          if (-not $crt) { throw 'MSVC runtime not found' }
+          Copy-Item "$($crt.FullName)\*.dll" $dist
+
+          Copy-Item LICENSE, THIRD_PARTY_NOTICES.md, README.md $dist
+          Compress-Archive -Path "$dist/*" -DestinationPath "dist/$name.zip"
+          Get-ChildItem $dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-x64
+          path: dist/*.zip
+          if-no-files-found: error
+
+  linux:
+    name: Linux x86_64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev libegl1-mesa-dev libxkbcommon-dev \
+            libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 python3-pil
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
           cache: true
 
       - name: Configure
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_CLI=ON -DBUILD_QT=ON
 
       - name: Build
-        run: cmake --build build --config Release --parallel
+        run: cmake --build build --parallel
+
+      - name: Package
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then version="$GITHUB_REF_NAME"; else version="${GITHUB_SHA::7}"; fi
+          mkdir -p dist tools
+
+          # CLI: plain tarball
+          cli="rcon-cli-$version-linux-x86_64"
+          mkdir -p "dist/$cli"
+          cp build/cli/rcon-cli LICENSE THIRD_PARTY_NOTICES.md README.md "dist/$cli/"
+          tar -C dist -czf "dist/$cli.tar.gz" "$cli"
+
+          # GUI: AppImage (bundles Qt)
+          python3 -c "from PIL import Image; Image.open('qt/favicon.ico').save('rcon-qt.png')"
+          wget -q -P tools \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x tools/*.AppImage
+          export QMAKE="$QT_ROOT_DIR/bin/qmake"
+          export PATH="$PWD/tools:$PATH"
+          linuxdeploy-x86_64.AppImage --appdir AppDir \
+            --executable build/qt/rcon-qt \
+            --icon-file rcon-qt.png \
+            --create-desktop-file \
+            --plugin qt \
+            --output appimage
+          mv rcon-qt*.AppImage "dist/rcon-qt-$version-linux-x86_64.AppImage"
+          ls -l dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-x86_64
+          path: |
+            dist/*.tar.gz
+            dist/*.AppImage
+          if-no-files-found: error
+
+  release:
+    name: Draft release
+    if: github.ref_type == 'tag'
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --draft --generate-notes --verify-tag

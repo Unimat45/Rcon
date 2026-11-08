@@ -106,7 +106,8 @@ jobs:
           tar -C dist -czf "dist/$cli.tar.gz" "$cli"
 
           # GUI: AppImage (bundles Qt)
-          python3 -c "from PIL import Image; Image.open('qt/favicon.ico').save('rcon-qt.png')"
+          # System python: install-qt-action puts its own (Pillow-less) python first on PATH
+          /usr/bin/python3 -c "from PIL import Image; Image.open('qt/favicon.ico').save('rcon-qt.png')"
           wget -q -P tools \
             https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage \
             https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
